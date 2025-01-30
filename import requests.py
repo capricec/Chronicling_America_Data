@@ -1,5 +1,8 @@
 import requests
 import json
+from datetime import datetime, timedelta
+import time
+import os
 
 def search_chronicling_america(query, state=None, dateFilterType=None, date1=None, date2=None,searchType=None, page=1):
     """
@@ -44,52 +47,69 @@ def search_chronicling_america(query, state=None, dateFilterType=None, date1=Non
 
 # Example usage
 if __name__ == "__main__":
-    all_items = []
-    current_page = 1
-    total_items = None
+    # Define date range for 1925
+    start_date = datetime(1925, 9, 28)
+    end_date = datetime(1925, 12, 31)
+    current_date = start_date
     
-    # Keep fetching until we have all results
-    while True:
-        results = search_chronicling_america(
-            query="",
-            state="",
-            date1="01-29-1925",
-            date2="01-29-1925",
-            page=current_page
-        )
+    # Create directory if it doesn't exist
+    os.makedirs("1925_results", exist_ok=True)
+    
+    while current_date <= end_date:
+        # Format the date as required for the API (MM-DD-YYYY)
+        search_date = current_date.strftime("%m-%d-%Y")
+        filename = f'1925_results/search_results_{search_date.replace("-", "_")}.txt'
         
-        # Store total items count from first request
-        if total_items is None:
-            total_items = results['totalItems']
-            #total_items = 19
-            print(f"Total items to fetch: {total_items}")
+        print(f"\nProcessing date: {search_date}")
         
-        # Add items from this page to our collection
-        all_items.extend(results['items'])
+        all_items = []
+        current_page = 1
+        total_items = None
         
-        # Print progress
-        print(f"Fetched page {current_page}, got {len(results['items'])} items. Total so far: {len(all_items)}")
-        
-        # Check if we've got all items or if there are no more results
-        if len(results['items']) == 0 or len(all_items) >= total_items:
-            break
+        # Keep fetching until we have all results for current date
+        while True:
+            results = search_chronicling_america(
+                query="",
+                state="",
+                date1=search_date,
+                date2=search_date,
+                page=current_page
+            )
             
-        current_page += 1
-    
-    print(f"\nFinished! Retrieved {len(all_items)} total items")
-    
-    # Save all results to a text file
-    with open('search_results.txt', 'w', encoding='utf-8') as f:
-        # Write total number of results
-        f.write(f"Found {len(all_items)} results\n\n")
+            # Store total items count from first request
+            if total_items is None:
+                total_items = results['totalItems']
+                print(f"Total items to fetch: {total_items}")
+            
+            # Add items from this page to our collection
+            all_items.extend(results['items'])
+            
+            # Print progress
+            print(f"Fetched page {current_page}, got {len(results['items'])} items. Total so far: {len(all_items)}")
+            
+            # Check if we've got all items or if there are no more results
+            if len(results['items']) == 0 or len(all_items) >= total_items:
+                break
+                
+            current_page += 1
+            time.sleep(0.5)  # Add a small delay between requests
         
-        # Write details for each item
-        for item in all_items:
-            print(item)
-            f.write(f"Title: {item['title']}\n")
-            f.write(f"Date: {item['date']}\n")
-            f.write(f"URL: {item['url']}\n")
-
-            if 'ocr_eng' in item:
-                f.write(f"Text: {item['ocr_eng']}\n")
-            f.write("-" * 50 + "\n\n")  # Add a separator between entries
+        print(f"Finished! Retrieved {len(all_items)} total items for {search_date}")
+        
+        # Save results for this date to a text file
+        with open(filename, 'w', encoding='utf-8') as f:
+            # Write total number of results
+            f.write(f"Found {len(all_items)} results\n\n")
+            
+            # Write details for each item
+            for item in all_items:
+                f.write(f"Title: {item['title']}\n")
+                f.write(f"Date: {item['date']}\n")
+                f.write(f"URL: {item['url']}\n")
+                if 'ocr_eng' in item:
+                    f.write(f"Text: {item['ocr_eng']}\n")
+                f.write("-" * 50 + "\n\n")  # Add a separator between entries
+        
+        # Move to next day
+        current_date += timedelta(days=1)
+        time.sleep(1)  # Add a delay between processing different dates
