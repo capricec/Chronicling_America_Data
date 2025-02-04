@@ -46,3 +46,4 @@ node_modules
 !.env.example
 1925_results
 Test
+service_account_key.json
