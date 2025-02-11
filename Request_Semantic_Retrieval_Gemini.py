@@ -1,5 +1,8 @@
 #Semantic Retrieval Gemini
 
+##NEED TO UPDATE THIS TO CHUNK AT 'URL' AND SAVE IN METADATA? WANT TO BE ABLE TO CITE THE URL IN APP
+
+
 import time
 service_account_file_name = 'service_account_key.json'
 
@@ -29,60 +32,97 @@ corpus_resource_name = "corpora/chroniclingamericatext-o3r7dekmxzmt"
 #  nanos: 262192000
 #}
 
+document_resource_name = "corpora/chroniclingamericatext-o3r7dekmxzmt/documents/01011925-fn5whlh1xyst"
+
+#delete old documents
+#req = glm.DeleteDocumentRequest(name=document_resource_name, force=True)
+#delete_corpus_response = retriever_service_client.delete_document(req)
+#print("Successfully deleted corpus: " + document_resource_name)
+
 # Create a document with a custom display name.
-example_document = glm.Document(display_name="01011925")
+#example_document = glm.Document(display_name="01011925")
 
 # Add metadata.
 # Metadata also supports numeric values not specified here
-document_metadata = [
-    glm.CustomMetadata(key="date", numeric_value = 19250101)]
-example_document.custom_metadata.extend(document_metadata)
+
+#document_metadata = [
+#    glm.CustomMetadata(key="date", numeric_value = 19250101)]
+#example_document.custom_metadata.extend(document_metadata)
 
 # Make the request
 # corpus_resource_name is a variable set in the "Create a corpus" section.
-create_document_request = glm.CreateDocumentRequest(parent=corpus_resource_name, document=example_document)
-create_document_response = retriever_service_client.create_document(create_document_request)
+#create_document_request = glm.CreateDocumentRequest(parent=corpus_resource_name, document=example_document)
+#create_document_response = retriever_service_client.create_document(create_document_request)
 
 # Set the `document_resource_name` for subsequent sections.
-document_resource_name = create_document_response.name
-print(create_document_response)
+#document_resource_name = create_document_response.name
+#print(create_document_response)
 
-document_resource_name = "corpora/chroniclingamericatext-o3r7dekmxzmt/documents/01011925-cae4xw51jijj"
+
 
 #%pip install -qU langchain-text-splitters
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Load and split document by articles first
+def split_into_articles(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Split the content at "Title:" but keep the delimiter
+    articles = content.split("\nTitle:")
+    # Add "Title:" back to all articles except the first one (if it started with Title:)
+    articles = [articles[0]] + [f"Title:{article}" for article in articles[1:]]
+    return [article.strip() for article in articles if article.strip()]
+
 # Load example document
-with open("/Users/capricecarstensen/Documents/Github/Chronicling_America_Data/Test/search_results_01_01_1925.txt") as f:
-    news_articles = f.read()
+file_path = "/Users/capricecarstensen/Documents/Github/Chronicling_America_Data/Test/search_results_01_01_1925.txt"
+articles = split_into_articles(file_path)
 
 text_splitter = RecursiveCharacterTextSplitter(
-    # Set a really small chunk size, just to show.
     chunk_size=1000,
     chunk_overlap=20,
     length_function=len,
     is_separator_regex=False,
 )
-passages = text_splitter.create_documents([news_articles])
 
-first_x_items = passages[101:1000] 
+def extract_url(article_text):
+    """Extract URL from article text"""
+    lines = article_text.split('\n')
+    for line in lines:
+        if line.startswith('URL:'):
+            return line.replace('URL:', '').strip()
+    return None
+
+# Process each article separately
+all_passages = []
+for article in articles:
+    article_chunks = text_splitter.create_documents([article])
+    url = extract_url(article)  # Get URL for this article
+    for chunk in article_chunks:
+        chunk.metadata = {'url': url}  # Change to dictionary format
+    all_passages.extend(article_chunks)
 
 # After loading passages, process in batches of 100
 batch_size = 100
-total_passages = len(passages)
+total_passages = len(all_passages)
 
 for i in range(0, total_passages, batch_size):
     batch_end = min(i + batch_size, total_passages)
-    current_batch = passages[i:batch_end]
+    current_batch = all_passages[i:batch_end]
     
     chunks = []
     for passage in current_batch:
+        url = passage.metadata.get('url', '')  # Get URL from metadata dictionary
+        print(f"Processing URL: {url}")  # Debug print
         chunk = glm.Chunk(data={'string_value': passage.page_content})
-        chunk.custom_metadata.append(glm.CustomMetadata(key = "publish_date", numeric_value = 19250101))
+        chunk.custom_metadata.append(glm.CustomMetadata(key="publish_date", numeric_value=19250101))
+        if url:  # Only add URL metadata if we have a URL
+            chunk.custom_metadata.append(glm.CustomMetadata(key="url", string_value=url))
         chunks.append(chunk)
-    
+
     # Make the request for this batch
+    
     create_chunk_requests = []
     for chunk in chunks:
         create_chunk_requests.append(glm.CreateChunkRequest(parent=document_resource_name, chunk=chunk))
@@ -97,7 +137,6 @@ for i in range(0, total_passages, batch_size):
     # Add a small delay between batches
     if batch_end < total_passages:
         time.sleep(1)
-
 '''
 #check chunks
 request = glm.ListChunksRequest(parent=document_resource_name)
