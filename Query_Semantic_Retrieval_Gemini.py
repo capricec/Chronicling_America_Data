@@ -24,7 +24,7 @@ from google.ai.generativelanguage import (
 
 corpus_resource_name = "corpora/chroniclingamericatext-o3r7dekmxzmt"
 
-user_query = "You are an journalist. What are the two top Seattle news headlines january 1, 1925? Each headline should be 15-20 words long. Suggest one image url from wikimedia.org for each headline."
+user_query = "I am a female in 2025, how am I feeling and why? The response should be 50 words long."
 results_count = 5
 
 answer_style = "ABSTRACTIVE" # Or VERBOSE, EXTRACTIVE
@@ -70,8 +70,8 @@ aqa_response = generative_service_client.generate_answer(req)
 print(user_query)
 print(aqa_response.answer.content.parts[0].text)
 #print(aqa_response)
-'''
-chunk_resource_name = aqa_response.answer.grounding_attributions[0].source_id.semantic_retriever_chunk.chunk
-get_chunk_response = retriever_service_client.get_chunk(name=chunk_resource_name)
-print(get_chunk_response)
-'''
+
+#chunk_resource_name = aqa_response.answer.grounding_attributions[0].source_id.semantic_retriever_chunk.chunk
+#get_chunk_response = retriever_service_client.get_chunk(name=chunk_resource_name)
+#print(get_chunk_response)
+
